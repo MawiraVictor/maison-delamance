@@ -1,7 +1,7 @@
 services:
   web:
     image: piuskakeeto/maison-delamance-web
-    build: 
+    build:
       context: .
       target: web
       dockerfile: Dockerfile
@@ -13,7 +13,7 @@ services:
 
   db:
     image: piuskakeeto/maison-delamance-db
-    build: 
+    build:
       context: .
       target: db
       dockerfile: Dockerfile
