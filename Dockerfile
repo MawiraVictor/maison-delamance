@@ -4,9 +4,9 @@ RUN mkdir -p /var/www/html/
 
 # installing and enabling dependencies for the php mysqli interface
 RUN apt-get update && apt-get install -y \
-    libmariadb-dev \
-    && docker-php-ext-install mysqli pdo_mysql \
-    && docker-php-ext-enable mysqli pdo_mysql
+	libmariadb-dev \
+	&& docker-php-ext-install mysqli pdo_mysql \
+	&& docker-php-ext-enable mysqli pdo_mysql
 
 WORKDIR /var/www/html/
 
