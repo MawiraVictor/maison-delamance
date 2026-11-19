@@ -1,0 +1,92 @@
+name: Deploy
+
+# Syncs the site files to the VPS and installs the Apache vhost over SSH
+# on every push to main (and on manual runs). No Docker, no images.
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions -> Secrets):
+#   VPS_HOST       IP / hostname of the VPS
+#   VPS_USER       SSH user that can write to the deploy path
+#   VPS_SSH_KEY    private key for that user (full key contents)
+#   VPS_PORT       optional SSH port, defaults to 22
+#
+# Repository variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   DEPLOY_PATH    optional, defaults to /var/www/shop
+#
+# The Apache step assumes VPS_USER is root, or has passwordless sudo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Sync site files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_PORT: ${{ secrets.VPS_PORT || 22 }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync files
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_USER: ${{ secrets.VPS_USER }}
+          SSH_PORT: ${{ secrets.VPS_PORT || 22 }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/shop' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "mkdir -p '$DEPLOY_PATH'"
+
+          rsync -az \
+            --chown=root:www-data \
+            --chmod=D750,F640 \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='config/config.json' \
+            -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT" \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Install Apache vhost
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_USER: ${{ secrets.VPS_USER }}
+          SSH_PORT: ${{ secrets.VPS_PORT || 22 }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/shop' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            bash -s -- "$DEPLOY_PATH" <<'REMOTE'
+          set -eu
+
+          DEPLOY_PATH="$1"
+
+          # Every deploy/apache/*.conf gets installed and enabled
+          for conf in "$DEPLOY_PATH"/deploy/apache/*.conf; do
+            [ -e "$conf" ] || continue
+            name="$(basename "$conf")"
+            install -m 644 -o root -g root "$conf" "/etc/apache2/sites-available/$name"
+            a2ensite "${name%.conf}"
+          done
+
+          # Only reload if the new config is valid; otherwise the job fails and
+          # Apache keeps serving the previously loaded config.
+          apachectl configtest
+          systemctl reload apache2
+          REMOTE
