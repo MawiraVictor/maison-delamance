@@ -1,19 +1,5 @@
 name: Deploy
 
-# Syncs the site files to the VPS and installs the Apache vhost over SSH
-# on every push to main (and on manual runs). No Docker, no images.
-#
-# Repository secrets (Settings -> Secrets and variables -> Actions -> Secrets):
-#   VPS_HOST       IP / hostname of the VPS
-#   VPS_USER       SSH user that can write to the deploy path
-#   VPS_SSH_KEY    private key for that user (full key contents)
-#   VPS_PORT       optional SSH port, defaults to 22
-#
-# Repository variables (Settings -> Secrets and variables -> Actions -> Variables):
-#   DEPLOY_PATH    optional, defaults to /var/www/shop
-#
-# The Apache step assumes VPS_USER is root, or has passwordless sudo.
-
 on:
   push:
     branches: [main]
