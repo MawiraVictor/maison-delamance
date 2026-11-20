@@ -1,0 +1,43 @@
+# Installed to /etc/fail2ban/jail.local by harden.sh
+[DEFAULT]
+banaction = ufw
+ignoreip  = 127.0.0.1/8 ::1
+findtime  = 10m
+maxretry  = 5
+bantime   = 1h
+# Repeat offenders get banned for longer each time
+bantime.increment = true
+bantime.maxtime   = 1w
+
+[sshd]
+enabled  = true
+port     = __SSH_PORT__
+backend  = systemd
+maxretry = 3
+
+# Failed HTTP basic-auth logins
+[apache-auth]
+enabled = true
+port    = http,https
+logpath = /var/log/apache2/*error.log
+
+# Bots probing for .php/.asp/.pl scripts that don't exist
+[apache-noscript]
+enabled = true
+port    = http,https
+logpath = /var/log/apache2/*error.log
+
+# Requests for things like /.env, /wp-login.php, /phpmyadmin
+[apache-botsearch]
+enabled = true
+port    = http,https
+logpath = /var/log/apache2/*error.log
+
+# Anyone banned 3 times in a day is banned for a week on every port
+[recidive]
+enabled  = true
+logpath  = /var/log/fail2ban.log
+banaction = ufw
+findtime = 1d
+bantime  = 1w
+maxretry = 3
